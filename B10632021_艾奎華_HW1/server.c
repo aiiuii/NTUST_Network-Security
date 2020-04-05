@@ -14,20 +14,20 @@
 #define DEBUG
 #define BUFFERSIZE 0xffff
 
-void setSocketTCP(int *sockfd, int keepalive, char *port, struct sockaddr_in *serverInfo);
+void setSocketTCP(int *sockfd, int keepalive, char *port);
 void parseHTTP(char *inputData, char *outputData, ssize_t size);
-void executeCGI(char *filename, int *input, int *output, char *outputData);
+void executeCGI(char *filename, char *outputData);
 int main(int argc, char *argv[])
 {
       int sockfd = 0, clientSockfd = 0;
-      struct sockaddr_in serverInfo, clientInfo;
+      struct sockaddr_in clientInfo;
       int addrlen = sizeof(clientInfo);
       char *port;
       int keepalive;
 
       port = argc > 2 ? argv[2] : "8080";
       keepalive = (argc > 1 && !strncmp(argv[1], "-k", 2)) ? 1 : 0;
-      setSocketTCP(&sockfd, keepalive, port, &serverInfo);
+      setSocketTCP(&sockfd, keepalive, port);
 
       while (1)
       {
@@ -57,8 +57,9 @@ int main(int argc, char *argv[])
       exit(0);
 }
 
-void setSocketTCP(int *sockfd, int keepalive, char *port, struct sockaddr_in *serverInfo)
+void setSocketTCP(int *sockfd, int keepalive, char *port)
 {
+      struct sockaddr_in serverInfo;
       int optval;
       socklen_t optlen = sizeof(optval);
 
@@ -85,12 +86,12 @@ void setSocketTCP(int *sockfd, int keepalive, char *port, struct sockaddr_in *se
       }
       printf("SO_KEEPALIVE default is %s\n", (optval ? "ON" : "OFF"));
 
-      bzero(serverInfo, sizeof(*serverInfo));
-      serverInfo->sin_family = PF_INET;
-      serverInfo->sin_addr.s_addr = INADDR_ANY;
-      serverInfo->sin_port = htons(atoi(port));
+      bzero(&serverInfo, sizeof(serverInfo));
+      serverInfo.sin_family = PF_INET;
+      serverInfo.sin_addr.s_addr = INADDR_ANY;
+      serverInfo.sin_port = htons(atoi(port));
 
-      bind(*sockfd, (struct sockaddr *)serverInfo, sizeof(*serverInfo));
+      bind(*sockfd, (struct sockaddr *)&serverInfo, sizeof(serverInfo));
       listen(*sockfd, 0xf);
 }
 
@@ -103,8 +104,6 @@ void parseHTTP(char *inputData, char *outputData, ssize_t size)
       char *env[3] = {"REQUEST_METHOD", "REQUEST_URI", "SERVER_PROTOCOL"};
       char copy[BUFFERSIZE + 1] = {};
       char *tokens[3];
-      int cgiInput[2];
-      int cgiOutput[2];
 
       if (size == -1)
       {
@@ -151,7 +150,7 @@ void parseHTTP(char *inputData, char *outputData, ssize_t size)
             if (strchr(tokens[1], '?') != NULL)
                   setenv("QUERY_STRING", strchr(tokens[1], '?') + 1, 1);
 
-            executeCGI("./env.cgi", cgiInput, cgiOutput, outputData);
+            executeCGI("./env.cgi", outputData);
             // while (read(cgiOutput[0], &c, 1) > 0)
             //       response[i++] = c;
             // response[i] = '\0';
@@ -163,7 +162,7 @@ void parseHTTP(char *inputData, char *outputData, ssize_t size)
             if (strchr(tokens[1], '?') != NULL)
                   setenv("QUERY_STRING", strchr(tokens[1], '?') + 1, 1);
 
-            executeCGI("./mul.cgi", cgiInput, cgiOutput, outputData);
+            executeCGI("./mul.cgi", outputData);
             // while (read(cgiOutput[0], &c, 1) > 0)
             //       response[i++] = c;
             // response[i] = '\0';
@@ -191,7 +190,7 @@ void parseHTTP(char *inputData, char *outputData, ssize_t size)
       }
 }
 
-void executeCGI(char *filename, int *in, int *o, char *outputData)
+void executeCGI(char *filename, char *outputData)
 {
       int input[2];
       int output[2];
